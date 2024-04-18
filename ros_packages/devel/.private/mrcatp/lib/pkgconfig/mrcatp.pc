@@ -1,0 +1,8 @@
+prefix=/home/jeppe/communication-aware-planning/ros_packages/devel/.private/mrcatp
+
+Name: mrcatp
+Description: Description of mrcatp
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 

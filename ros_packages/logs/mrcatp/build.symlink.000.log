@@ -1,0 +1,5 @@
+Symlinking /home/jeppe/communication-aware-planning/ros_packages/devel/lib/mrcatp/mrcatp.py
+Symlinking /home/jeppe/communication-aware-planning/ros_packages/devel/lib/mrcatp/cmake.lock
+Symlinking /home/jeppe/communication-aware-planning/ros_packages/devel/lib/pkgconfig/mrcatp.pc
+Symlinking /home/jeppe/communication-aware-planning/ros_packages/devel/share/mrcatp/cmake/mrcatpConfig.cmake
+Symlinking /home/jeppe/communication-aware-planning/ros_packages/devel/share/mrcatp/cmake/mrcatpConfig-version.cmake

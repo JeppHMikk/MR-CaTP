@@ -1,0 +1,6 @@
+<launch>
+    <!-- Launch mrcatp node -->
+    <rosparam file="$(find mrcatp)/config/param.yaml" command="load"/>
+    <node name="mrcatp" pkg="mrcatp" type="mrcatp.py" output="screen"/>
+</launch>
+

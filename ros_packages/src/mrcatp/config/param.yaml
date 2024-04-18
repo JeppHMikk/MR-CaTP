@@ -1,0 +1,15 @@
+odometry_topic: estimation_manager/odom_main
+control_frame: gps_baro_origin
+N: 10 # Number of drones
+N_pois: 5
+K: 5 # Number of steps to predict
+uavs: [uav1,uav2,uav3,uav4,uav5,uav6,uav7,uav8,uav9,uav10]
+alpha: 0.1
+d50: 50
+l2_min: 0.1
+r: 0.5
+epsilon: 4
+eta: 1000
+zeta: 0.1
+u_min: -0.1
+u_max: 0.1

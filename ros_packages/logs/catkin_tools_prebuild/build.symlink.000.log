@@ -1,0 +1,12 @@
+Symlinking /home/jeppe/communication-aware-planning/ros_packages/devel/./setup.sh
+Symlinking /home/jeppe/communication-aware-planning/ros_packages/devel/./local_setup.zsh
+Symlinking /home/jeppe/communication-aware-planning/ros_packages/devel/./setup.bash
+Symlinking /home/jeppe/communication-aware-planning/ros_packages/devel/./cmake.lock
+Symlinking /home/jeppe/communication-aware-planning/ros_packages/devel/./setup.zsh
+Symlinking /home/jeppe/communication-aware-planning/ros_packages/devel/./_setup_util.py
+Symlinking /home/jeppe/communication-aware-planning/ros_packages/devel/./env.sh
+Symlinking /home/jeppe/communication-aware-planning/ros_packages/devel/./local_setup.bash
+Symlinking /home/jeppe/communication-aware-planning/ros_packages/devel/./local_setup.sh
+Symlinking /home/jeppe/communication-aware-planning/ros_packages/devel/lib/pkgconfig/catkin_tools_prebuild.pc
+Symlinking /home/jeppe/communication-aware-planning/ros_packages/devel/share/catkin_tools_prebuild/cmake/catkin_tools_prebuildConfig-version.cmake
+Symlinking /home/jeppe/communication-aware-planning/ros_packages/devel/share/catkin_tools_prebuild/cmake/catkin_tools_prebuildConfig.cmake

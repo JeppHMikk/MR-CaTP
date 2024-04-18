@@ -1,0 +1,8 @@
+prefix=/home/jeppe/communication-aware-planning/ros_packages/devel/.private/catkin_tools_prebuild
+
+Name: catkin_tools_prebuild
+Description: Description of catkin_tools_prebuild
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 
