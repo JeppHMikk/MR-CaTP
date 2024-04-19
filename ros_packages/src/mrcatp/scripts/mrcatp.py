@@ -43,17 +43,17 @@ def poiAssignment(p,pois):
     N = p.shape[1]
     N_pois = pois.shape[1]
     # CALCULATE DISTANCE BETWEEN EACH ROBOT AND POI FOR HUNGARIAN ALGORITHM
-    C = np.zeros(shape=(N-1,N_pois))
+    C = np.zeros(shape=(N,N_pois))
     for i in range(N_pois):
-        for j in range(1,N):
-            C[j-1,i] = np.linalg.norm(pois[:,i] - p[:,j],ord=2)
+        for j in range(N):
+            C[j,i] = np.linalg.norm(pois[:,i] - p[:,j],ord=2)
 
     # CALCULATE ASSIGNMENT VECTOR AND MATRIX
     row_ind, col_ind = linear_sum_assignment(C)
     S = np.zeros(shape=(N,N_pois))
-    S[row_ind+1,col_ind] = 1
+    S[row_ind,col_ind] = 1
     S = S.transpose()
-    ass = row_ind+1
+    ass = row_ind
 
     return ass, S
 
@@ -227,7 +227,7 @@ def mrcatp():
 
     p = np.zeros(shape=(2,N)) # position vectors
 
-    rate = rospy.Rate(1) # 10hz
+    rate = rospy.Rate(20) # 10hz
     
     # INITIALISE ROBOT POSITION ESTIMATE SUBSCRIBERS
     subscribers = []
@@ -286,67 +286,70 @@ def mrcatp():
 
         if(activate):
 
-            #e = np.linalg.norm(p[0:2,:] - p_ref[0:2,:],ord=2,axis=0)
+            e = np.linalg.norm(p[0:2,:] - p_ref[0:2,:],ord=2,axis=0)
 
-            #if(np.all(e <= 0.2)):
+            if(np.all(e <= 0.2)):
 
              #   print(str(iter) + ": waypoints reached. calculating new waypoint")
 
-            p_curr = p
+                p_curr = p
 
-            # CALCULATE ADJACENCY MATRIX
-            A = adjacencyMatrix(p_curr,alpha,d50) # adjacency matrix
-            D = np.diag(np.sum(A,axis=1)) # degree matrix
-            L = D - A # graph laplacian
-            
-            # CALCULATE CURRENT FIEDLER VALUE AND VECTOR
-            l,v = np.linalg.eig(L) # laplacian eigenvalues and eigenvector
-            sort_idx = np.argsort(l)
-            l = l[sort_idx]
-            v = v[:,sort_idx]
-            l2 = l[1] # Fiedler value
-            v2 = np.reshape(v[:,1],newshape=(N,1)) # Fiedler vector
+                # CALCULATE ADJACENCY MATRIX
+                A = adjacencyMatrix(p_curr,alpha,d50) # adjacency matrix
+                D = np.diag(np.sum(A,axis=1)) # degree matrix
+                L = D - A # graph laplacian
+                
+                # CALCULATE CURRENT FIEDLER VALUE AND VECTOR
+                l,v = np.linalg.eig(L) # laplacian eigenvalues and eigenvector
+                sort_idx = np.argsort(l)
+                l = l[sort_idx]
+                v = v[:,sort_idx]
+                l2 = l[1] # Fiedler value
+                v2 = np.reshape(v[:,1],newshape=(N,1)) # Fiedler vector
 
-            print(l2)
+                print(l2)
 
-            # CALCULATE COLLISION AVOIDANCE CONSTRAINT
-            C_coll,d_coll = collisionConstraint(p_curr,r,epsilon,K)
+                # CALCULATE COLLISION AVOIDANCE CONSTRAINT
+                C_coll,d_coll = collisionConstraint(p_curr,r,epsilon,K)
 
-            # CALCULATE COMMUNICATION CONSTRAINT
-            m,C_comm,d_comm = communicationConstraint(p_curr,A,l2,v2,l2_min,alpha,K)
+                # CALCULATE COMMUNICATION CONSTRAINT
+                m,C_comm,d_comm = communicationConstraint(p_curr,A,l2,v2,l2_min,alpha,K)
 
-            # CALCULATE INPUT CONSTRAINT
-            C_in = np.concatenate((-np.eye(2*N*K),np.eye(2*N*K)),axis=0)
-            d_in = np.concatenate((u_max*np.ones(shape=(2*N*K,1)),u_max*np.ones(shape=(2*N*K,1))),axis=0)
+                # CALCULATE INPUT CONSTRAINT
+                C_in = np.concatenate((-np.eye(2*N*K),np.eye(2*N*K)),axis=0)
+                d_in = np.concatenate((u_max*np.ones(shape=(2*N*K,1)),u_max*np.ones(shape=(2*N*K,1))),axis=0)
 
-            # CONCATENATE CONSTRAINTS TOGETHER
-            C = np.concatenate((C_coll,-C_comm,C_in),axis=0)
-            d = np.concatenate((d_coll,-d_comm,d_in),axis=0)
+                # CONCATENATE CONSTRAINTS TOGETHER
+                C = np.concatenate((C_coll,-C_comm,C_in),axis=0)
+                d = np.concatenate((d_coll,-d_comm,d_in),axis=0)
 
-            # GENERATE COST FUNCTION
-            H,f = costFun(S,K,p_curr,pois,C_comm,eta,zeta)
+                # GENERATE COST FUNCTION
+                H,f = costFun(S,K,p_curr,pois,C_comm,eta,zeta)
 
-            # SOLVE OPTIMIZATION PROBLEM
-            u_opt = solve_quadratic_program(H,f,C,d,u_opt)
-            
-            if(u_opt is None):
-                u_opt = np.zeros(shape=(2*N*K,1))
-
-            # APPLY FIRST INPUT
-            u = np.reshape(u_opt[0:2*N],newshape=(2,N),order='F')
-
-            """
-            p_pred = np.zeros(shape=(2,K,N))
-            for i in range(K):
-                #u_opt_i = u_opt[i*N:i*N+2*N]
-                u_i = np.reshape(u_opt[i*N:i*N+2*N],newshape=(2,N),order='F')
-                if(i == 0):
-                    p_pred[:,i,:] = p_curr + u_i
+                if(np.all(np.linalg.norm(p[:,ass] - pois,ord=2,axis=0) <= 0.2)):
+                    u_opt = np.zeros(shape=(2*N*K,1))
                 else:
-                    p_pred[:,i,:] = p_pred[:,i-1,:] + u_i
-            """
-                    
-            p_ref = p_curr + u
+                    # SOLVE OPTIMIZATION PROBLEM
+                    u_opt = solve_quadratic_program(H,f,C,d,None)
+                
+                if(u_opt is None):
+                    u_opt = np.zeros(shape=(2*N*K,1))
+
+                # APPLY FIRST INPUT
+                u = np.reshape(u_opt[0:2*N],newshape=(2,N),order='F')
+
+                """
+                p_pred = np.zeros(shape=(2,K,N))
+                for i in range(K):
+                    #u_opt_i = u_opt[i*N:i*N+2*N]
+                    u_i = np.reshape(u_opt[i*N:i*N+2*N],newshape=(2,N),order='F')
+                    if(i == 0):
+                        p_pred[:,i,:] = p_curr + u_i
+                    else:
+                        p_pred[:,i,:] = p_pred[:,i-1,:] + u_i
+                """
+                        
+                p_ref = p_curr + u
 
             for i in range(N):
                 p_ref_i = ReferenceStamped()
