@@ -13,7 +13,7 @@ from qpsolvers import solve_qp
 
 from std_msgs.msg import String
 from nav_msgs.msg import Odometry
-from mrs_msgs.msg import TrajectoryReference, Reference
+from mrs_msgs.msg import TrajectoryReference, Reference, ReferenceStamped, VelocityReferenceStamped
 from geometry_msgs.msg import _Pose
 from geometry_msgs.msg import PoseWithCovariance
 from geometry_msgs.msg import Point
@@ -28,7 +28,7 @@ activate = False
 
 def pos_callback(p_slice,data):
     #rospy.loginfo(rospy.get_caller_id() + "I heard %s", data.data)   
-    p_slice[:] = [data.pose.pose.position.x, data.pose.pose.position.y]
+    p_slice[:] = np.reshape([data.pose.pose.position.x, data.pose.pose.position.y],newshape=p_slice[:].shape)
 
 def actsrv_callback(req):
     global activate
@@ -99,7 +99,6 @@ def collisionConstraint(p,r,epsilon,K):
 
     # for checking if C is generated correctly
     #p_col = np.reshape(p,newshape=(2*N,1),order='F')
-    #print(np.all(C.dot(p_col) <= np.reshape(d,newshape=(d.shape[0],1))))
 
     d = d - (r + epsilon/2)
 
@@ -165,13 +164,14 @@ def costFun(S,K,p,p_poi,M,eta,zeta):
     r = np.multiply(-np.reshape(np.sum(M,axis=0),newshape=(1,2*n*K)),np.kron(np.ones(shape=(1,K)),1-np.sum(np.kron(S,np.eye(2)),axis=0)))
 
     f = (-E.transpose().dot(S_tilde) + eta*r).transpose()
+    #f = (-E.transpose().dot(S_tilde)).transpose()
 
-    R = np.zeros(shape=(n-1,n))
-    R[0:n,0:n-1] = R[0:n,0:n-1] + np.eye(n-1)
-    R[0:n,1:n] = R[0:n,1:n] - np.eye(n-1)
-    R = np.kron(np.kron(R,np.eye(K)),np.eye(2))
-    R = R.transpose().dot(R)
-    H = H + 20*R
+    #R = np.zeros(shape=(n-1,n))
+    #R[0:n,0:n-1] = R[0:n,0:n-1] + np.eye(n-1)
+    #R[0:n,1:n] = R[0:n,1:n] - np.eye(n-1)
+    #R = np.kron(np.kron(R,np.eye(K)),np.eye(2))
+    #R = R.transpose().dot(R)
+    #H = H + 20*R
 
     #H = np.zeros(shape=(2*n*K,2*n*K))
     #f = np.reshape(-M[-1,:],newshape=(1,2*n*K)).transpose()
@@ -193,7 +193,7 @@ def cvxopt_solve_qp(P, q, G, h, A=None, b=None):
         return None
     return np.array(sol['x']).reshape((P.shape[1],))
 
-def solve_quadratic_program(H, f, C, d):
+def solve_quadratic_program(H, f, C, d, x0):
 
     # Ensure inputs are numpy arrays
     H = np.asarray(H)
@@ -202,7 +202,7 @@ def solve_quadratic_program(H, f, C, d):
     d = np.asarray(d)
 
     # Call QuadProg solver
-    x = solve_qp(H, f, C, d, solver='quadprog')
+    x = solve_qp(H, f, C, d, solver='quadprog', initvals=x0)
 
     return x
 
@@ -227,7 +227,7 @@ def mrcatp():
 
     p = np.zeros(shape=(2,N)) # position vectors
 
-    rate = rospy.Rate(10) # 10hz
+    rate = rospy.Rate(1) # 10hz
     
     # INITIALISE ROBOT POSITION ESTIMATE SUBSCRIBERS
     subscribers = []
@@ -236,17 +236,19 @@ def mrcatp():
         callback_i = lambda data, slice=p_slice: pos_callback(slice, data)
         subscribers.append(rospy.Subscriber("/%s/estimation_manager/odom_main" % uavs[i], Odometry, callback_i))
 
+    #publishers = []
+    #for i in range(N):
+    #    publishers.append(rospy.Publisher("/%s/control_manager/trajectory_reference" % uavs[i], TrajectoryReference, queue_size=1))
+
     publishers = []
     for i in range(N):
-        publishers.append(rospy.Publisher("/%s/control_manager/trajectory_reference" % uavs[i], TrajectoryReference, queue_size=1))
+        publishers.append(rospy.Publisher("/%s/control_manager/reference" % uavs[i], ReferenceStamped, queue_size=1))
+        #publishers.append(rospy.Publisher("/%s/control_manager/velocity_reference" % uavs[i], VelocityReferenceStamped, queue_size=1))
 
     l2 = 0 # Fiedler value vector
 
-    pois = np.random.uniform(low=-75,high=75,size=(2,N_pois)) # poi positions
+    pois = np.random.uniform(low=-50,high=50,size=(2,N_pois)) # poi positions
     A = np.zeros(shape=(N,N)) # adjacency matrix
-
-    # CALCULATE ASSIGNMENT OF ROBOTS TO POIS
-    ass, S = poiAssignment(p,pois)
 
     marker_pub = []
     for id in range(N_pois):
@@ -264,18 +266,36 @@ def mrcatp():
     marker.color.g = 0.0
     marker.color.b = 0.0
 
+    iter = 0
+
+    u_opt = np.zeros(shape=(2*N*K,1))
+
     # MAIN LOOP
     while (not rospy.is_shutdown()):
+
+        if(iter == 0):
+            # CALCULATE ASSIGNMENT OF ROBOTS TO POIS
+            ass, S = poiAssignment(p,pois)
+            p_ref = p
+
+        for i in range(N_pois):
+            marker.pose.position.x = pois[0,i]
+            marker.pose.position.y = pois[1,i]
+            marker.pose.position.z = 1.5
+            marker_pub[i].publish(marker)
+
         if(activate):
 
-            for i in range(N_pois):
-                marker.pose.position.x = pois[0,i]
-                marker.pose.position.y = pois[1,i]
-                marker.pose.position.z = 1.5
-                marker_pub[i].publish(marker)
-            
+            #e = np.linalg.norm(p[0:2,:] - p_ref[0:2,:],ord=2,axis=0)
+
+            #if(np.all(e <= 0.2)):
+
+             #   print(str(iter) + ": waypoints reached. calculating new waypoint")
+
+            p_curr = p
+
             # CALCULATE ADJACENCY MATRIX
-            A = adjacencyMatrix(p,alpha,d50) # adjacency matrix
+            A = adjacencyMatrix(p_curr,alpha,d50) # adjacency matrix
             D = np.diag(np.sum(A,axis=1)) # degree matrix
             L = D - A # graph laplacian
             
@@ -290,10 +310,10 @@ def mrcatp():
             print(l2)
 
             # CALCULATE COLLISION AVOIDANCE CONSTRAINT
-            C_coll,d_coll = collisionConstraint(p,r,epsilon,K)
+            C_coll,d_coll = collisionConstraint(p_curr,r,epsilon,K)
 
             # CALCULATE COMMUNICATION CONSTRAINT
-            m,C_comm,d_comm = communicationConstraint(p,A,l2,v2,l2_min,alpha,K)
+            m,C_comm,d_comm = communicationConstraint(p_curr,A,l2,v2,l2_min,alpha,K)
 
             # CALCULATE INPUT CONSTRAINT
             C_in = np.concatenate((-np.eye(2*N*K),np.eye(2*N*K)),axis=0)
@@ -304,39 +324,41 @@ def mrcatp():
             d = np.concatenate((d_coll,-d_comm,d_in),axis=0)
 
             # GENERATE COST FUNCTION
-            H,f = costFun(S,K,p,pois,C_comm,eta,zeta)
+            H,f = costFun(S,K,p_curr,pois,C_comm,eta,zeta)
 
             # SOLVE OPTIMIZATION PROBLEM
-            u_opt = solve_quadratic_program(H,f,C,d)
+            u_opt = solve_quadratic_program(H,f,C,d,u_opt)
             
+            if(u_opt is None):
+                u_opt = np.zeros(shape=(2*N*K,1))
+
             # APPLY FIRST INPUT
             u = np.reshape(u_opt[0:2*N],newshape=(2,N),order='F')
 
+            """
             p_pred = np.zeros(shape=(2,K,N))
-
             for i in range(K):
-                u_opt_i = u_opt[i*N:i*N+2*N]
-                u_i = np.reshape(u_opt_i,newshape=(2,N),order='F')
+                #u_opt_i = u_opt[i*N:i*N+2*N]
+                u_i = np.reshape(u_opt[i*N:i*N+2*N],newshape=(2,N),order='F')
                 if(i == 0):
-                    p_pred[:,i,:] = p + u_i
+                    p_pred[:,i,:] = p_curr + u_i
                 else:
                     p_pred[:,i,:] = p_pred[:,i-1,:] + u_i
-
+            """
+                    
+            p_ref = p_curr + u
 
             for i in range(N):
-                trajectory_msg = TrajectoryReference()
-                trajectory_msg.use_heading = False
-                trajectory_msg.fly_now = True
-                trajectory_msg.loop = False
-                trajectory_msg.dt = 0.2
-                for j in range(K):
-                    reference_point = Reference()
-                    reference_point.position.x = p_pred[0,j,i]
-                    reference_point.position.y = p_pred[1,j,i]
-                    reference_point.position.z = 1.5
-                    trajectory_msg.points.append(reference_point)
-                publishers[i].publish(trajectory_msg)
-                
+                p_ref_i = ReferenceStamped()
+                p_ref_i.reference.position.x = p_ref[0,i]
+                p_ref_i.reference.position.y = p_ref[1,i]
+                p_ref_i.reference.position.z = 1.5
+                publishers[i].publish(p_ref_i)
+
+            rate.sleep()
+
+        iter = iter + 1
+
 if __name__ == '__main__':
     try:
         mrcatp()
