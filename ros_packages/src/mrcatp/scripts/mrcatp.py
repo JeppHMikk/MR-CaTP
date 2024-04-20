@@ -209,7 +209,7 @@ def mrcatp():
 
     pois = np.concatenate((pois_x,pois_y),axis=0)
 
-    rate = rospy.Rate(20) # 10hz
+    rate = rospy.Rate(10) # 10hz
     
     # INITIALISE ROBOT POSITION ESTIMATE SUBSCRIBERS
     subscribers = []
@@ -263,6 +263,7 @@ def mrcatp():
             e_poi = np.max(np.abs(p_poi_col - p_insp))
             if(e_poi <= 0.1):
                 activate = False
+                rospy.loginfo('Planning finished!')
 
             e = np.linalg.norm(p[0:2,:] - p_ref[0:2,:],ord=2,axis=0)
 

@@ -3,7 +3,7 @@ control_frame: world_origin
 N: 7 # Number of drones
 N_pois: 3
 K: 5 # Number of steps to predict
-uavs: [uav1,uav2,uav3,uav4,uav5,uav6,uav7]
+uavs: [uav1,uav3,uav7,uav8,uav31,uav32,uav37]
 alpha: 1
 d50: 20
 l2_min: 0.1
@@ -14,5 +14,5 @@ zeta: 5
 u_min: -1.0
 u_max: 1.0
 pois_x: [-20.53349973, 3.05867556, -30.84792131]
-pois_y: [-43.20996418, 28.698546, 15.63335218]
+pois_y: [-3.20996418, 28.698546, 15.63335218]
 

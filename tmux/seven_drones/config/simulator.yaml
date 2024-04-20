@@ -30,12 +30,12 @@ ground:
 
 uav_names: [
   "uav1",
-  "uav2",
   "uav3",
-  "uav4",
-  "uav5",
-  "uav6",
   "uav7",
+  "uav8",
+  "uav31",
+  "uav32",
+  "uav37",
 ]
 
 uav1:
@@ -46,7 +46,7 @@ uav1:
     z: 2.0
     heading: 0
 
-uav2:
+uav3:
   type: "x500"
   spawn:
     x: 0.0
@@ -54,7 +54,7 @@ uav2:
     z: 2.0
     heading: 0
 
-uav3:
+uav7:
   type: "x500"
   spawn:
     x: 10.0
@@ -62,7 +62,7 @@ uav3:
     z: 2.0
     heading: 0
 
-uav4:
+uav8:
   type: "x500"
   spawn:
     x: -10.0
@@ -70,7 +70,7 @@ uav4:
     z: 2.0
     heading: 0
 
-uav5:
+uav31:
   type: "x500"
   spawn:
     x: 0.0
@@ -78,7 +78,7 @@ uav5:
     z: 2.0
     heading: 0
 
-uav6:
+uav32:
   type: "x500"
   spawn:
     x: 10.0
@@ -86,7 +86,7 @@ uav6:
     z: 2.0
     heading: 0
 
-uav7:
+uav37:
   type: "x500"
   spawn:
     x: -10.0
