@@ -21,7 +21,6 @@ from std_srvs.srv import Trigger, TriggerResponse
 from visualization_msgs.msg import Marker
 from geometry_msgs.msg import Point
 
-
 np.random.seed(17)
 
 activate = False
@@ -59,7 +58,7 @@ def poiAssignment(p,pois):
 
 def prr(p1,p2,alpha,d50):
     d = np.linalg.norm(p2-p1,2)
-    return 1 - 1/(1 + math.exp(-alpha*(d - d50))) #math.exp(-alpha*(d - d50))/(1 + math.exp(-alpha*(d - d50)))
+    return 1 - 1/(1 + math.exp(-alpha*(d - d50)))
 
 def adjacencyMatrix(p,alpha,d50):
     N = p.shape[1]
@@ -97,9 +96,6 @@ def collisionConstraint(p,r,epsilon,K):
             C = block_diag(C,C_i)
             d = np.concatenate((d,d_i),axis=0)
 
-    # for checking if C is generated correctly
-    #p_col = np.reshape(p,newshape=(2*N,1),order='F')
-
     d = d - (r + epsilon/2)
 
     p_col = np.reshape(p,newshape=(2*N,1),order='F')
@@ -132,12 +128,6 @@ def communicationConstraint(p,A,l2,v2,l2_min,alpha,K):
         m[0,i] = v2.transpose().dot(dLdi0.dot(v2))
         m[1,i] = v2.transpose().dot(dLdi1.dot(v2))
 
-
-    #dDdh = np.diag(np.sum(dAdh,axis=0))
-    #dLdh = dDdh - dAdh
-    #m[0,h] = v2.transpose().dot(dLdh[:,:,0].dot(v2))
-    #m[1,h] = v2.transpose().dot(dLdh[:,:,1].dot(v2))
-    
     L = np.tril(np.ones(shape=(K,K)))
     M = np.kron(L,np.reshape(m,newshape=(1,2*N),order='F'))
     b = (l2_min - l2)*np.ones(shape=(K,1))
@@ -160,22 +150,8 @@ def costFun(S,K,p,p_poi,M,eta,zeta):
     S_tilde = np.kron(np.eye(K),np.kron(S,np.eye(2))).dot(B)
     H = S_tilde.transpose().dot(S_tilde) + zeta*np.eye(2*n*K)
 
-    #f = -E.transpose().dot(S_tilde).transpose()
     r = np.multiply(-np.reshape(np.sum(M,axis=0),newshape=(1,2*n*K)),np.kron(np.ones(shape=(1,K)),1-np.sum(np.kron(S,np.eye(2)),axis=0)))
-
     f = (-E.transpose().dot(S_tilde) + eta*r).transpose()
-    #f = (-E.transpose().dot(S_tilde)).transpose()
-
-    #R = np.zeros(shape=(n-1,n))
-    #R[0:n,0:n-1] = R[0:n,0:n-1] + np.eye(n-1)
-    #R[0:n,1:n] = R[0:n,1:n] - np.eye(n-1)
-    #R = np.kron(np.kron(R,np.eye(K)),np.eye(2))
-    #R = R.transpose().dot(R)
-    #H = H + 20*R
-
-    #H = np.zeros(shape=(2*n*K,2*n*K))
-    #f = np.reshape(-M[-1,:],newshape=(1,2*n*K)).transpose()
-    #f = -np.reshape(np.sum(M,axis=0),newshape=(2*n*K,1))
 
     return H,f
 
@@ -224,8 +200,14 @@ def mrcatp():
     eta = rospy.get_param("/eta")
     zeta = rospy.get_param("/zeta")
     u_max = rospy.get_param("/u_max")
+    pois_x = np.asarray(rospy.get_param("/pois_x")).reshape((1,N_pois))
+    pois_y = np.asarray(rospy.get_param("/pois_y")).reshape((1,N_pois))
+    control_frame = rospy.get_param("/control_frame")
+    global activate
 
     p = np.zeros(shape=(2,N)) # position vectors
+
+    pois = np.concatenate((pois_x,pois_y),axis=0)
 
     rate = rospy.Rate(20) # 10hz
     
@@ -236,19 +218,9 @@ def mrcatp():
         callback_i = lambda data, slice=p_slice: pos_callback(slice, data)
         subscribers.append(rospy.Subscriber("/%s/estimation_manager/odom_main" % uavs[i], Odometry, callback_i))
 
-    #publishers = []
-    #for i in range(N):
-    #    publishers.append(rospy.Publisher("/%s/control_manager/trajectory_reference" % uavs[i], TrajectoryReference, queue_size=1))
-
     publishers = []
     for i in range(N):
         publishers.append(rospy.Publisher("/%s/control_manager/reference" % uavs[i], ReferenceStamped, queue_size=1))
-        #publishers.append(rospy.Publisher("/%s/control_manager/velocity_reference" % uavs[i], VelocityReferenceStamped, queue_size=1))
-
-    l2 = 0 # Fiedler value vector
-
-    pois = np.random.uniform(low=-50,high=50,size=(2,N_pois)) # poi positions
-    A = np.zeros(shape=(N,N)) # adjacency matrix
 
     marker_pub = []
     for id in range(N_pois):
@@ -273,11 +245,6 @@ def mrcatp():
     # MAIN LOOP
     while (not rospy.is_shutdown()):
 
-        if(iter == 0):
-            # CALCULATE ASSIGNMENT OF ROBOTS TO POIS
-            ass, S = poiAssignment(p,pois)
-            p_ref = p
-
         for i in range(N_pois):
             marker.pose.position.x = pois[0,i]
             marker.pose.position.y = pois[1,i]
@@ -286,11 +253,20 @@ def mrcatp():
 
         if(activate):
 
+            if(iter == 0):
+                p_ref = p
+                ass, S = poiAssignment(p,pois)
+
+            p_col = np.reshape(p,newshape=(2*N,1),order='F')
+            p_poi_col = np.reshape(pois,newshape=(2*N_pois,1),order='F')
+            p_insp = np.kron(S,np.eye(2)).dot(p_col)
+            e_poi = np.max(np.abs(p_poi_col - p_insp))
+            if(e_poi <= 0.1):
+                activate = False
+
             e = np.linalg.norm(p[0:2,:] - p_ref[0:2,:],ord=2,axis=0)
 
             if(np.all(e <= 0.2)):
-
-             #   print(str(iter) + ": waypoints reached. calculating new waypoint")
 
                 p_curr = p
 
@@ -307,7 +283,7 @@ def mrcatp():
                 l2 = l[1] # Fiedler value
                 v2 = np.reshape(v[:,1],newshape=(N,1)) # Fiedler vector
 
-                print(l2)
+                #print(l2)
 
                 # CALCULATE COLLISION AVOIDANCE CONSTRAINT
                 C_coll,d_coll = collisionConstraint(p_curr,r,epsilon,K)
@@ -326,28 +302,14 @@ def mrcatp():
                 # GENERATE COST FUNCTION
                 H,f = costFun(S,K,p_curr,pois,C_comm,eta,zeta)
 
-                if(np.all(np.linalg.norm(p[:,ass] - pois,ord=2,axis=0) <= 0.2)):
-                    u_opt = np.zeros(shape=(2*N*K,1))
-                else:
-                    # SOLVE OPTIMIZATION PROBLEM
-                    u_opt = solve_quadratic_program(H,f,C,d,None)
+                # SOLVE OPTIMIZATION PROBLEM
+                u_opt = solve_quadratic_program(H,f,C,d,None)
                 
                 if(u_opt is None):
                     u_opt = np.zeros(shape=(2*N*K,1))
 
                 # APPLY FIRST INPUT
                 u = np.reshape(u_opt[0:2*N],newshape=(2,N),order='F')
-
-                """
-                p_pred = np.zeros(shape=(2,K,N))
-                for i in range(K):
-                    #u_opt_i = u_opt[i*N:i*N+2*N]
-                    u_i = np.reshape(u_opt[i*N:i*N+2*N],newshape=(2,N),order='F')
-                    if(i == 0):
-                        p_pred[:,i,:] = p_curr + u_i
-                    else:
-                        p_pred[:,i,:] = p_pred[:,i-1,:] + u_i
-                """
                         
                 p_ref = p_curr + u
 
@@ -356,11 +318,12 @@ def mrcatp():
                 p_ref_i.reference.position.x = p_ref[0,i]
                 p_ref_i.reference.position.y = p_ref[1,i]
                 p_ref_i.reference.position.z = 1.5
+                p_ref_i.header.frame_id = control_frame
                 publishers[i].publish(p_ref_i)
 
             rate.sleep()
 
-        iter = iter + 1
+            iter = iter + 1
 
 if __name__ == '__main__':
     try:

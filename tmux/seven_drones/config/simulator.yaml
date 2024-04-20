@@ -36,9 +36,6 @@ uav_names: [
   "uav5",
   "uav6",
   "uav7",
-  "uav8",
-  "uav9",
-  "uav10",
 ]
 
 uav1:
@@ -97,26 +94,3 @@ uav7:
     z: 2.0
     heading: 0
 
-uav8:
-  type: "x500"
-  spawn:
-    x: 0.0
-    y: 10.0
-    z: 2.0
-    heading: 0
-
-uav9:
-  type: "x500"
-  spawn:
-    x: 10.0
-    y: 10.0
-    z: 2.0
-    heading: 0
-
-uav10:
-  type: "x500"
-  spawn:
-    x: 0.0
-    y: 20.0
-    z: 2.0
-    heading: 0

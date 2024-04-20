@@ -32,9 +32,6 @@ windows:
         - waitForHw; export UAV_NAME=uav5; roslaunch mrs_uav_status status.launch
         - waitForHw; export UAV_NAME=uav6; roslaunch mrs_uav_status status.launch
         - waitForHw; export UAV_NAME=uav7; roslaunch mrs_uav_status status.launch
-        - waitForHw; export UAV_NAME=uav8; roslaunch mrs_uav_status status.launch
-        - waitForHw; export UAV_NAME=uav9; roslaunch mrs_uav_status status.launch
-        - waitForHw; export UAV_NAME=uav10; roslaunch mrs_uav_status status.launch
   - hw_api:
       layout: tiled
       panes:
@@ -45,9 +42,6 @@ windows:
         - waitForTime; export UAV_NAME=uav5; roslaunch mrs_multirotor_simulator hw_api.launch custom_config:=./config/hw_api.yaml nodelet_manager_name:=$UAV_NAME\_nodelet_manager
         - waitForTime; export UAV_NAME=uav6; roslaunch mrs_multirotor_simulator hw_api.launch custom_config:=./config/hw_api.yaml nodelet_manager_name:=$UAV_NAME\_nodelet_manager
         - waitForTime; export UAV_NAME=uav7; roslaunch mrs_multirotor_simulator hw_api.launch custom_config:=./config/hw_api.yaml nodelet_manager_name:=$UAV_NAME\_nodelet_manager
-        - waitForTime; export UAV_NAME=uav8; roslaunch mrs_multirotor_simulator hw_api.launch custom_config:=./config/hw_api.yaml nodelet_manager_name:=$UAV_NAME\_nodelet_manager
-        - waitForTime; export UAV_NAME=uav9; roslaunch mrs_multirotor_simulator hw_api.launch custom_config:=./config/hw_api.yaml nodelet_manager_name:=$UAV_NAME\_nodelet_manager
-        - waitForTime; export UAV_NAME=uav10; roslaunch mrs_multirotor_simulator hw_api.launch custom_config:=./config/hw_api.yaml nodelet_manager_name:=$UAV_NAME\_nodelet_manager
   - control:
       layout: tiled
       panes:
@@ -58,9 +52,6 @@ windows:
         - export UAV_NAME=uav5; waitForTime; roslaunch mrs_uav_core core.launch
         - export UAV_NAME=uav6; waitForTime; roslaunch mrs_uav_core core.launch
         - export UAV_NAME=uav7; waitForTime; roslaunch mrs_uav_core core.launch
-        - export UAV_NAME=uav8; waitForTime; roslaunch mrs_uav_core core.launch
-        - export UAV_NAME=uav9; waitForTime; roslaunch mrs_uav_core core.launch
-        - export UAV_NAME=uav10; waitForTime; roslaunch mrs_uav_core core.launch
   - automatic_start:
       layout: tiled
       panes:
@@ -71,9 +62,6 @@ windows:
         - export UAV_NAME=uav5; waitForTime; roslaunch mrs_uav_autostart automatic_start.launch custom_config:=./config/automatic_start.yaml
         - export UAV_NAME=uav6; waitForTime; roslaunch mrs_uav_autostart automatic_start.launch custom_config:=./config/automatic_start.yaml
         - export UAV_NAME=uav7; waitForTime; roslaunch mrs_uav_autostart automatic_start.launch custom_config:=./config/automatic_start.yaml
-        - export UAV_NAME=uav8; waitForTime; roslaunch mrs_uav_autostart automatic_start.launch custom_config:=./config/automatic_start.yaml
-        - export UAV_NAME=uav9; waitForTime; roslaunch mrs_uav_autostart automatic_start.launch custom_config:=./config/automatic_start.yaml
-        - export UAV_NAME=uav10; waitForTime; roslaunch mrs_uav_autostart automatic_start.launch custom_config:=./config/automatic_start.yaml
   - takeoff:
       layout: tiled
       panes:
@@ -84,9 +72,6 @@ windows:
         - export UAV_NAME=uav5; waitForControl; rosservice call /$UAV_NAME/hw_api/arming 1; sleep 2; rosservice call /$UAV_NAME/hw_api/offboard; exit
         - export UAV_NAME=uav6; waitForControl; rosservice call /$UAV_NAME/hw_api/arming 1; sleep 2; rosservice call /$UAV_NAME/hw_api/offboard; exit
         - export UAV_NAME=uav7; waitForControl; rosservice call /$UAV_NAME/hw_api/arming 1; sleep 2; rosservice call /$UAV_NAME/hw_api/offboard; exit
-        - export UAV_NAME=uav8; waitForControl; rosservice call /$UAV_NAME/hw_api/arming 1; sleep 2; rosservice call /$UAV_NAME/hw_api/offboard; exit
-        - export UAV_NAME=uav9; waitForControl; rosservice call /$UAV_NAME/hw_api/arming 1; sleep 2; rosservice call /$UAV_NAME/hw_api/offboard; exit
-        - export UAV_NAME=uav10; waitForControl; rosservice call /$UAV_NAME/hw_api/arming 1; sleep 2; rosservice call /$UAV_NAME/hw_api/offboard; exit
   - rviz:
       layout: tiled
       panes:
