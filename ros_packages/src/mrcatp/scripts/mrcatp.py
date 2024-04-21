@@ -245,7 +245,7 @@ def mrcatp():
     ws = 10 # moving average window size
     p_hist = np.zeros(shape=(2,N,ws))
 
-    e_bound = 0.75
+    e_bound = 0.5
 
     # MAIN LOOP
     while (not rospy.is_shutdown()):
@@ -268,7 +268,7 @@ def mrcatp():
             e_poi = np.max(np.abs(p_poi_col - p_insp))
 
             if(e_poi <= 0.1):
-                e_bound = 0.1
+                e_bound = 0.05
                 rospy.loginfo('Planning finished!')
             
             e = np.linalg.norm(p[0:2,:] - p_ref[0:2,:],ord=2,axis=0)
@@ -310,7 +310,7 @@ def mrcatp():
                 H,f = costFun(S,K,p_curr,pois,C_comm,eta,zeta)
 
                 # SOLVE OPTIMIZATION PROBLEM
-                u_opt = solve_quadratic_program(H,f,C,d,None)
+                u_opt = solve_quadratic_program(H,f,C,d,u_opt)
                 
                 if(u_opt is None):
                     u_opt = np.zeros(shape=(2*N*K,1))
@@ -324,7 +324,7 @@ def mrcatp():
                 p_ref_i = ReferenceStamped()
                 p_ref_i.reference.position.x = p_ref[0,i]
                 p_ref_i.reference.position.y = p_ref[1,i]
-                p_ref_i.reference.position.z = 1.5
+                p_ref_i.reference.position.z = 3.5
                 p_ref_i.header.frame_id = control_frame
                 publishers[i].publish(p_ref_i)
 
