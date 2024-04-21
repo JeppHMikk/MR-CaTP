@@ -209,7 +209,7 @@ def mrcatp():
 
     pois = np.concatenate((pois_x,pois_y),axis=0)
 
-    rate = rospy.Rate(10) # 10hz
+    rate = rospy.Rate(1) # 10hz
     
     # INITIALISE ROBOT POSITION ESTIMATE SUBSCRIBERS
     subscribers = []
@@ -220,19 +220,19 @@ def mrcatp():
 
     publishers = []
     for i in range(N):
-        publishers.append(rospy.Publisher("/%s/control_manager/reference" % uavs[i], ReferenceStamped, queue_size=1))
+        publishers.append(rospy.Publisher("/%s/control_manager/reference" % uavs[i], ReferenceStamped, queue_size=20))
 
     marker_pub = []
     for id in range(N_pois):
-        marker_pub.append(rospy.Publisher('poi_'+str(id), Marker, queue_size=1))
+        marker_pub.append(rospy.Publisher('poi_'+str(id), Marker, queue_size=20))
 
     marker = Marker()
     marker.header.frame_id = "simulator_origin"  # Assuming your marker is in the "map" frame
     marker.type = Marker.SPHERE
     marker.action = Marker.ADD
-    marker.scale.x = 0.5  # Marker size
-    marker.scale.y = 0.5
-    marker.scale.z = 0.5
+    marker.scale.x = 1.5  # Marker size
+    marker.scale.y = 1.5
+    marker.scale.z = 1.5
     marker.color.a = 0.5
     marker.color.r = 1.0
     marker.color.g = 0.0
@@ -253,7 +253,7 @@ def mrcatp():
         for i in range(N_pois):
             marker.pose.position.x = pois[0,i]
             marker.pose.position.y = pois[1,i]
-            marker.pose.position.z = 1.5
+            marker.pose.position.z = 3.5
             marker_pub[i].publish(marker)
 
         if(activate):
@@ -271,10 +271,14 @@ def mrcatp():
                 e_bound = 0.05
                 rospy.loginfo('Planning finished!')
             
-            e = np.linalg.norm(p[0:2,:] - p_ref[0:2,:],ord=2,axis=0)
+            e = np.linalg.norm(p - p_ref,ord=2,axis=0)
+
+            print("Position Error:")
+            print(e)
 
             if(np.all(e <= e_bound)):
 
+                print("Positions reached: Generating new references")
                 p_curr = p
 
                 # CALCULATE ADJACENCY MATRIX
@@ -313,12 +317,17 @@ def mrcatp():
                 u_opt = solve_quadratic_program(H,f,C,d,u_opt)
                 
                 if(u_opt is None):
-                    u_opt = np.zeros(shape=(2*N*K,1))
+                    print("Could not calculate optimal solution: Setting u to zero")
+                    u = np.zeros(shape=(2,N))
+                else:
+                    u = np.reshape(u_opt[0:2*N],newshape=(2,N),order='F')
+                    print("Found optimal solution")
 
-                # APPLY FIRST INPUT
-                u = np.reshape(u_opt[0:2*N],newshape=(2,N),order='F')
-                        
                 p_ref = p_curr + u
+
+                print("Position Change Rerence:")
+                print(u)
+
 
             for i in range(N):
                 p_ref_i = ReferenceStamped()
