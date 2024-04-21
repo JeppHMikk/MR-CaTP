@@ -5,14 +5,14 @@ N_pois: 3
 K: 5 # Number of steps to predict
 uavs: [uav1,uav3,uav7,uav8,uav31,uav32,uav37]
 alpha: 1
-d50: 20
+d50: 15
 l2_min: 0.1
 r: 0.5
-epsilon: 5
-eta: 500
-zeta: 5
-u_min: -1.0
-u_max: 1.0
-pois_x: [-20.53349973, 3.05867556, -30.84792131]
-pois_y: [-3.20996418, 28.698546, 15.63335218]
+epsilon: 3
+eta: 1000
+zeta: 0.1
+u_min: -2
+u_max: 2
+pois_x: [-20, 5, -30] #-45 + 15 = -30
+pois_y: [-5, 30, 15] # 20 - 15 = +5
 

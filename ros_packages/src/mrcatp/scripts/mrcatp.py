@@ -242,6 +242,11 @@ def mrcatp():
 
     u_opt = np.zeros(shape=(2*N*K,1))
 
+    ws = 10 # moving average window size
+    p_hist = np.zeros(shape=(2,N,ws))
+
+    e_bound = 0.75
+
     # MAIN LOOP
     while (not rospy.is_shutdown()):
 
@@ -261,13 +266,14 @@ def mrcatp():
             p_poi_col = np.reshape(pois,newshape=(2*N_pois,1),order='F')
             p_insp = np.kron(S,np.eye(2)).dot(p_col)
             e_poi = np.max(np.abs(p_poi_col - p_insp))
-            if(e_poi <= 0.1):
-                activate = False
-                rospy.loginfo('Planning finished!')
 
+            if(e_poi <= 0.1):
+                e_bound = 0.1
+                rospy.loginfo('Planning finished!')
+            
             e = np.linalg.norm(p[0:2,:] - p_ref[0:2,:],ord=2,axis=0)
 
-            if(np.all(e <= 0.2)):
+            if(np.all(e <= e_bound)):
 
                 p_curr = p
 
@@ -284,7 +290,7 @@ def mrcatp():
                 l2 = l[1] # Fiedler value
                 v2 = np.reshape(v[:,1],newshape=(N,1)) # Fiedler vector
 
-                #print(l2)
+                print(l2)
 
                 # CALCULATE COLLISION AVOIDANCE CONSTRAINT
                 C_coll,d_coll = collisionConstraint(p_curr,r,epsilon,K)
