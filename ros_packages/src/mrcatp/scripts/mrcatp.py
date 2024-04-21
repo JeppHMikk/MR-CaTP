@@ -210,7 +210,7 @@ def mrcatp():
     pois = np.concatenate((pois_x,pois_y),axis=0)
 
     rate = rospy.Rate(1) # 10hz
-    
+
     # INITIALISE ROBOT POSITION ESTIMATE SUBSCRIBERS
     subscribers = []
     for i in range(N):
@@ -227,7 +227,7 @@ def mrcatp():
         marker_pub.append(rospy.Publisher('poi_'+str(id), Marker, queue_size=20))
 
     marker = Marker()
-    marker.header.frame_id = "simulator_origin"  # Assuming your marker is in the "map" frame
+    marker.header.frame_id = "uav1/world_origin"  # Assuming your marker is in the "map" frame
     marker.type = Marker.SPHERE
     marker.action = Marker.ADD
     marker.scale.x = 1.5  # Marker size
@@ -245,7 +245,7 @@ def mrcatp():
     ws = 10 # moving average window size
     p_hist = np.zeros(shape=(2,N,ws))
 
-    e_bound = 0.5
+    e_bound = 0.75
 
     # MAIN LOOP
     while (not rospy.is_shutdown()):

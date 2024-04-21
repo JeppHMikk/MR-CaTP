@@ -29,6 +29,9 @@ topics: # topics published out of this machine to receivers specified above
  - name: "/joy_value"
    compress: true # enable bz2 compression
    rate: 2.0
+ - name: "control_manager/reference"
+   compress: true # enable bz2 compression
+   rate: 10.0
 
 services:
   - name: "trajectory_generation/path"
