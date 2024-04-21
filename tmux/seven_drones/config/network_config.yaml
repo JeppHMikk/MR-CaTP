@@ -18,6 +18,6 @@ network:
     uav8,
     uav31,
     uav32,
-    uav37,
+    #uav37,
 
   ]

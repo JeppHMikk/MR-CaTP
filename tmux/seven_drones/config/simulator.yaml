@@ -35,62 +35,62 @@ uav_names: [
   "uav8",
   "uav31",
   "uav32",
-  "uav37",
+  #"uav37",
 ]
 
 uav1:
   type: "x500"
   spawn:
-    x: -10.0
-    y: -10.0
+    x: -50.0
+    y: 10.0
     z: 2.0
     heading: 0
 
 uav3:
   type: "x500"
   spawn:
-    x: 0.0
-    y: -10.0
+    x: -40.0
+    y: 10.0
     z: 2.0
     heading: 0
 
 uav7:
   type: "x500"
   spawn:
-    x: 10.0
-    y: -10.0
+    x: -30.0
+    y: 10.0
     z: 2.0
     heading: 0
 
 uav8:
   type: "x500"
   spawn:
-    x: -10.0
-    y: 0.0
+    x: -50.0
+    y: 20.0
     z: 2.0
     heading: 0
 
 uav31:
   type: "x500"
   spawn:
-    x: 0.0
-    y: 0.0
+    x: -40.0
+    y: 20.0
     z: 2.0
     heading: 0
 
 uav32:
   type: "x500"
   spawn:
-    x: 10.0
-    y: 0.0
+    x: -30.0
+    y: 20.0
     z: 2.0
     heading: 0
 
-uav37:
-  type: "x500"
-  spawn:
-    x: -10.0
-    y: 10.0
-    z: 2.0
-    heading: 0
+#uav37:
+#  type: "x500"
+#  spawn:
+#    x: -50.0
+#    y: 30.0
+#    z: 2.0
+#    heading: 0
 

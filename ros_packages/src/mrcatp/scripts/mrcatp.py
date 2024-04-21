@@ -268,7 +268,7 @@ def mrcatp():
             e_poi = np.max(np.abs(p_poi_col - p_insp))
 
             if(e_poi <= 0.1):
-                e_bound = 0.05
+                #e_bound = 0.05
                 rospy.loginfo('Planning finished!')
             
             e = np.linalg.norm(p - p_ref,ord=2,axis=0)

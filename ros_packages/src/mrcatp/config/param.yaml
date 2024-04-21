@@ -1,18 +1,18 @@
 odometry_topic: estimation_manager/odom_main
 control_frame: world_origin
-N: 7 # Number of drones
+N: 6 # Number of drones
 N_pois: 3
 K: 5 # Number of steps to predict
-uavs: [uav1,uav3,uav7,uav8,uav31,uav32,uav37]
+uavs: [uav1,uav3,uav7,uav8,uav31,uav32] #,uav37]
 alpha: 1
 d50: 15
 l2_min: 0.1
 r: 0.5
-epsilon: 3
-eta: 1000
-zeta: 0.1
+epsilon: 4
+eta: 10
+zeta: 5
 u_min: -2.5
 u_max: 2.5
 pois_x: [-50, -25, -60] #-45 + 15 = -30
-pois_y: [0, 35, 20] # 20 - 15 = +5
+pois_y: [0, 35, 30] # 20 - 15 = +5
 
