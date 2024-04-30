@@ -6,6 +6,8 @@ close all
 % Show solved problem: 17,23,25,28,30,40
 % Show infeasible problem: 20,24,29,37
 
+addpath functions/
+
 rng(17)
 set(0, 'DefaultFigureRenderer', 'painters');
 
