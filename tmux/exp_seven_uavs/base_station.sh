@@ -35,8 +35,13 @@ pre_input=""
 # * "new line" after the command    => the command will be called after start
 # * NO "new line" after the command => the command will wait for user's <enter>
 input=(
-  'mrcatp' 'roslaunch mrcatp mrcatp.launch'
+  'mrcatp' ' waitForHw; roslaunch mrcatp mrcatp.launch
+  '
+  'mrcatp' ' waitForHw; roslaunch area_monitoring_controller tf_publisher.launch
+  '
   'activation' 'rosservice call /mrcatp_activate'
+  'rviz' 'rviz -d ~/manuel_7_drones.rviz
+  '
 )
 
 # the name of the window to focus after start
