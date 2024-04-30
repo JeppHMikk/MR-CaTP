@@ -3,20 +3,21 @@ clear all
 close all
 
 % Seeds:
-% Show solved problem: 17,23,25,28,30,40
-% Show infeasible problem: 20,24,29,37
+% Feasible problem: 1,2,3,4,6
+% Infeasible problem: 13,29
 
 addpath functions/
 
-rng(17)
+rng(13)
 set(0, 'DefaultFigureRenderer', 'painters');
 
 %%
 
-options = optimoptions("quadprog",'Display','none','Algorithm','interior-point-convex');
+options1 = optimoptions("quadprog",'Display','none','Algorithm','interior-point-convex');
+options2 = optimoptions("quadprog",'Display','none','Algorithm','active-set');
 
 N = 10; % number of robots
-T = 500;
+T = 750;
 width = 50; % environment width
 height = 50; % environment height
 r = 0.1; % robot radii
@@ -27,6 +28,9 @@ K = 5; % prediction horizon
 reach_time = nan;
 reached = false;
 N_pois = 5; % Number of POIs
+u_max = 0.5;
+eta = 1000;
+zeta = 10;
 
 % Generate random initial positions
 p = zeros(2,T,N);
@@ -55,7 +59,7 @@ slack = ones(T,1);
 
 % Sample random POI position
 pois = zeros(2,N_pois);
-pois(:,2:end) = [unifrnd(-200,200,[1,N_pois-1]);unifrnd(-200,200,[1,N_pois-1])];
+pois(:,2:end) = [unifrnd(-150,150,[1,N_pois-1]);unifrnd(-150,150,[1,N_pois-1])];
 
 rt = zeros(T,1); % run time for each time step
 
@@ -114,28 +118,31 @@ for k = 1:T
     
     % Construct cost function
     S_tilde = kron(eye(K),S)*B;
-    H = blkdiag((S_tilde'*S_tilde) + 5*(eye(2*N*K)),diag(0*ones(K,1)));
+    H = blkdiag((S_tilde'*S_tilde) + zeta*(eye(2*N*K)),diag(0*ones(K,1)));
     f = [(-kron(ones(K,1),reshape(pois,2*N_pois,1) - S*reshape(p(:,k,:),2*N,1))'*S_tilde)';zeros(K,1)];
-    f(1:2*N*K) = f(1:2*N*K) - (1000*DLdp(end,:).*kron(ones(1,K),1-ones(1,2*N_pois)*S))';
+    f(1:2*N*K) = f(1:2*N*K) - (eta*DLdp(end,:).*kron(ones(1,K),1-ones(1,2*N_pois)*S))';
     
     % Set constraints
     A_hard = [-DLdp,zeros(size(DLdp,1),K)];
     b_hard = repmat(l2(k) - l2_min,K,1);
     Ac = [A_hard;[C,zeros(size(C,1),size(A_hard,2)-size(C,2))]];
     bc = [b_hard;d];
-    lb = [repmat([0;0;-0.5*ones(2*(N-1),1)],K,1);zeros(K,1)];
-    ub = [repmat([0;0;0.5*ones(2*(N-1),1)],K,1);inf(K,1)];
-    hot_start = [vs_prev(1:2*N*(K-1));vs_prev(2*N*(K-2)+1:2*N*(K-1));vs_prev(2*N*K+1:end)];
-    % hot_start = [];
+    lb = [repmat([0;0;-u_max*ones(2*(N-1),1)],K,1);zeros(K,1)];
+    ub = [repmat([0;0;u_max*ones(2*(N-1),1)],K,1);inf(K,1)];
+    hot_start = [];
 
     % Solve optimization problem
-    vs_new = quadprog(H,f,Ac,bc,[],[],lb,ub,hot_start,options);
+    vs_new = quadprog(H,f,Ac,bc,[],[],lb,ub,zeros(2*N*K+K,1),options1);
     if(~isempty(vs_new))
-        vs_prev = vs_new;
-        vs = vs_new(1:K*2*N);
+        vs = vs_new(1:2*N*K);
     else
-        disp('NSF')
-        vs = zeros(size(vs));
+        vs_new = quadprog(H,f,Ac,bc,[],[],lb,ub,zeros(2*N*K+K,1),options2);
+        if(~isempty(vs_new))
+            vs = vs_new(1:2*N*K);
+        else
+            disp('NSF')
+            vs = zeros(size(vs));
+        end
     end
 
     % Predict Fiedler value
@@ -198,7 +205,7 @@ close all
 
 fig2 = figure(2);
 
-k_snap = [0,50,200,500];
+k_snap = [0,50,100,750];
 k_snap(1) = 1;
 
 for j = 1:4
@@ -227,26 +234,28 @@ for j = 1:4
     title("k="+k_snap(j)+" ()",'Interpreter','latex')
     hold off
 end
-sgtitle('Robots Trajectories','Fontsize',12,'Interpreter','latex')
+sgtitle('Robots Trajectories for Infeasible Problem','Fontsize',12,'Interpreter','latex')
 set(fig2,'Position',[0,0,500,475])
 
 fig3 = figure(3);
 hold on
 yline(l2_min,'r--','LineWidth',2)
 plot(l2(1:T),'k','LineWidth',2)
-xline(reach_time,'g-','LineWidth',2)
+% xline(reach_time,'g-','LineWidth',2)
 hold off
 box on
-legend('$\underline{\lambda_2}$','$\lambda_2$','$k_{reach}$','Interpreter','latex','Location','northeast')
+% legend('$\underline{\lambda_2}$','$\lambda_2$','$k_{reach}$','Interpreter','latex','Location','northeast')
+legend('$\underline{\lambda_2}$','$\lambda_2$','Interpreter','latex','Location','northeast')
+xlim([0 T])
 ylim([0,1.1*max(l2)])
 xlabel('k ()','Interpreter','latex')
 ylabel('$\lambda_2 ()$','Interpreter','latex')
-title('Fiedler Value','Fontsize',12,'Interpreter','latex')
+title('Fiedler Value for Infeasible Problem','Fontsize',12,'Interpreter','latex')
 
 set(fig3,'Position',[0,0,500,200])
 
-% exportgraphics(fig2,'poi_pos.eps')
-% exportgraphics(fig3,'poi_fiedler.eps')
+exportgraphics(fig2,'figs/poi_pos_infs.eps')
+exportgraphics(fig3,'figs/poi_fiedler_infs.eps')
 
 
 

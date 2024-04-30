@@ -3,12 +3,12 @@ clear all
 close all
 
 % Seeds:
-% Show solved problem: 17,23,25,28,30,40
-% Show infeasible problem: 20,24,29,37
+% Feasible problem: 1,2,3,4,6
+% Infeasible problem: 13,29
 
 addpath functions/
 
-rng(17)
+rng(1)
 set(0, 'DefaultFigureRenderer', 'painters');
 
 %%
@@ -16,7 +16,7 @@ set(0, 'DefaultFigureRenderer', 'painters');
 options = optimoptions("fmincon","Display","off");
 
 N = 10; % number of robots
-T = 500;
+T = 750;
 width = 50; % environment width
 height = 50; % environment height
 r = 0.1; % robot radii
@@ -27,6 +27,9 @@ K = 5; % prediction horizon
 reach_time = nan;
 reached = false;
 N_pois = 5; % Number of POIs
+u_max = 0.5;
+eta = 1000;
+zeta = 10;
 
 % Generate random initial positions
 p = zeros(2,T,N);
@@ -55,7 +58,7 @@ slack = ones(T,1);
 
 % Sample random POI position
 pois = zeros(2,N_pois);
-pois(:,2:end) = [unifrnd(-200,200,[1,N_pois-1]);unifrnd(-200,200,[1,N_pois-1])];
+pois(:,2:end) = [unifrnd(-150,150,[1,N_pois-1]);unifrnd(-150,150,[1,N_pois-1])];
 
 u_opt_prev = zeros(2*N*K,1);
 
@@ -93,7 +96,7 @@ for k = 1:T
 
     % Check if POIs have been reached
     if(all(vecnorm(reshape(p(:,k,ass),2,N_pois) - pois,2,1) <= 1) && ~reached)
-        reach_time = t(k);
+        reach_time = k;
         reached = true;
     end
 
@@ -121,11 +124,11 @@ for k = 1:T
     [DLdp,dldp] = communicationGradient(p(:,k,:),A(:,:,k),v2,K,alpha);
     
     S_tilde = kron(eye(K),S)*B;
-    H = (S_tilde'*S_tilde) + 5*(eye(2*N*K));
+    H = (S_tilde'*S_tilde) + zeta*(eye(2*N*K));
     f = (-kron(ones(K,1),reshape(pois,2*N_pois,1) - S*reshape(p(:,k,:),2*N,1))'*S_tilde)';
-    f = f - (1000*DLdp(end,:).*kron(ones(1,K),1-ones(1,2*N_pois)*S))';
-    lb = [repmat([0;0;-0.5*ones(2*(N-1),1)],K,1)];
-    ub = [repmat([0;0;0.5*ones(2*(N-1),1)],K,1)];
+    f = f - (eta*DLdp(end,:).*kron(ones(1,K),1-ones(1,2*N_pois)*S))';
+    lb = [repmat([0;0;-u_max*ones(2*(N-1),1)],K,1)];
+    ub = [repmat([0;0;u_max*ones(2*(N-1),1)],K,1)];
     costfun = @(x)(x'*H*x + f'*x);
     constfun = @(x)nonlincon(x,reshape(p(:,k,:),2*N,1),K,B,N,alpha,d50,l2_min,r,epsilon);
 
@@ -197,7 +200,7 @@ close all
 
 fig2 = figure(2);
 
-k_snap = [0,50,200,500];
+k_snap = [0,50,100,750];
 k_snap(1) = 1;
 
 for j = 1:4
@@ -226,23 +229,26 @@ for j = 1:4
     title("k="+k_snap(j)+" ()",'Interpreter','latex')
     hold off
 end
-sgtitle('Robots Trajectories','Fontsize',12,'Interpreter','latex')
+sgtitle('Robots Trajectories using Original Constraints','Fontsize',12,'Interpreter','latex')
 set(fig2,'Position',[0,0,500,475])
 
 fig3 = figure(3);
 hold on
 yline(l2_min,'r--','LineWidth',2)
 plot(l2(1:T),'k','LineWidth',2)
-xline(reach_time,'g-','LineWidth',2)
+% xline(reach_time,'g-','LineWidth',2)
 hold off
 box on
-legend('$\underline{\lambda_2}$','$\lambda_2$','$k_{reach}$','Interpreter','latex','Location','northeast')
+% legend('$\underline{\lambda_2}$','$\lambda_2$','$k_{reach}$','Interpreter','latex','Location','northeast')
+legend('$\underline{\lambda_2}$','$\lambda_2$','Interpreter','latex','Location','northeast')
+xlim([0 T])
 ylim([0,1.1*max(l2)])
 xlabel('k ()','Interpreter','latex')
 ylabel('$\lambda_2 ()$','Interpreter','latex')
-title('Fiedler Value','Fontsize',12,'Interpreter','latex')
+title('Fiedler Value using Original Constraints','Fontsize',12,'Interpreter','latex')
 
 set(fig3,'Position',[0,0,500,200])
 
-% exportgraphics(fig2,'poi_pos_exp.eps')
-% exportgraphics(fig3,'poi_fiedler_exp.eps')
+exportgraphics(fig2,'figs/poi_pos_exp.eps')
+exportgraphics(fig3,'figs/poi_fiedler_exp.eps')
+

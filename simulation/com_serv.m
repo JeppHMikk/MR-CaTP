@@ -16,10 +16,6 @@ set(0, 'DefaultFigureRenderer', 'painters');
 options = optimoptions("quadprog",'Display','none','Algorithm','interior-point-convex');
 
 N = 10; % number of robots
-tfinal = 200;
-ts = 0.1; % sampling time of simulator
-dt = 0.4; % prediction time steps
-t = 0:ts:tfinal;
 T = 1000; %length(t);
 width = 50; % environment width
 height = 50; % environment height
@@ -29,6 +25,8 @@ alpha = 0.1; % signal attenuation
 d50 = 50; % 50% signal attenuation distance
 K = 4; % number of waypoints
 N_pois = 5;
+l2_min_hard = 0.25; % Fiedler value hard constraint
+l2_min_soft = 1; % Fiedler value soft constraint
 reach_time = nan;
 reached = false;
 
@@ -51,9 +49,6 @@ A = zeros(N,N,T); % adjacency matrix
 
 l2 = zeros(1,T); % Fiedler value
 dl2 = zeros(1,T); % Fiedler value derivative
-
-l2_min_hard = 0.25; % Fiedler value lower bound
-l2_min_soft = 1; 
 
 dldp = zeros(N,1);
 
@@ -104,8 +99,10 @@ for k = 1:T
     b_hard = repmat(l2(k) - l2_min_hard,K,1);
     A_soft = [-DLdp,-eye(K)];
     b_soft = repmat(l2(k) - l2_min_soft,K,1);
-    Ac = [A_hard;A_soft;[C,zeros(size(C,1),size(A_hard,2)-size(C,2))]]; %...
-    bc = [b_hard;b_soft;d];
+    % Ac = [A_hard;A_soft;[C,zeros(size(C,1),size(A_hard,2)-size(C,2))]]; %...
+    % bc = [b_hard;b_soft;d];
+    Ac = [C,zeros(size(C,1),size(A_hard,2)-size(C,2))]; %...
+    bc = d;
     lb = [repmat([0;0;-0.5*ones(2*(N-1),1)],K,1);zeros(K,1)];
     ub = [repmat([0;0;0.5*ones(2*(N-1),1)],K,1);inf(K,1)];
     hot_start = [vs_prev(1:2*N*(K-1));vs_prev(2*N*(K-2)+1:2*N*(K-1));vs_prev(2*N*K+1:end)];
@@ -188,7 +185,7 @@ hold off
 title('Robots wo. Communication Insurance Service','Fontsize',12,'Interpreter','latex')
 set(fig2,'Position',[0,0,500,475])
 
-exportgraphics(fig2,'pos_wo_com_ser.eps')
+% exportgraphics(fig2,'pos_wo_com_ser.eps')
 
 fig3 = figure(3);
 hold on
@@ -206,6 +203,6 @@ title('Fiedler Value wo. Communication Insurance Service','Fontsize',12,'Interpr
 
 set(fig3,'Position',[0,0,500,200])
 
-% exportgraphics(fig3,'fiedler_wo_com_ser.eps')
+exportgraphics(fig3,'figs/fiedler_wo_com_ser.eps')
 
 
