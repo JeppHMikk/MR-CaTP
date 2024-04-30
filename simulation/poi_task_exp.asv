@@ -11,7 +11,7 @@ set(0, 'DefaultFigureRenderer', 'painters');
 
 %%
 
-options = optimoptions("quadprog",'Display','none','Algorithm','interior-point-convex');
+options = optimoptions("fmincon","Display","off");
 
 N = 10; % number of robots
 T = 500;
@@ -43,6 +43,8 @@ p(:,1,1) = zeros(2,1);
 A = zeros(N,N,T); % adjacency matrix
 l2 = zeros(1,T); % Fiedler value
 dl2 = zeros(1,T); % Fiedler value derivative
+l2_est = zeros(1,T); % Fiedler value estimation
+dl2_est = zeros(1,T); % Fiedler value derivative estimate
 l2_min = 0.1; % Fiedler value lower bound
 dldp = zeros(N,1);
 
@@ -55,11 +57,14 @@ slack = ones(T,1);
 pois = zeros(2,N_pois);
 pois(:,2:end) = [unifrnd(-200,200,[1,N_pois-1]);unifrnd(-200,200,[1,N_pois-1])];
 
-rt = zeros(T,1); % run time for each time step
+u_opt_prev = zeros(2*N*K,1);
+
+nsf_cnt = 0;
 
 %%
 
-% Calculate distance between each robot and pois for Hungarian algorithm
+% calculate distance between each robot and pois for Hungarian
+% algorithm
 C = zeros(N_pois-1,N-1);
 for i = 2:N_pois
     for j = 2:N
@@ -67,23 +72,28 @@ for i = 2:N_pois
     end
 end
 [ass,cost] = munkres(C);
-ass = ass + 1; % Groundstation was ignored
-ass = [1,ass]; % The robots that are assigned is the groundstation and the remaining robots
+ass = ass + 1; % we ignored the groundstation
+ass = [1,ass];
+
 s = zeros(N_pois,N);
 iter = 1;
 for i = ass
     s(iter,i) = 1;
     iter = iter + 1;
 end
-S = kron(s,eye(2)); % Construct robot assignment matrix
+S = kron(s,eye(2));
+
+dir_grad = zeros(2*N*K,1);
+
+rt = zeros(T,1); % run time for each time step
 
 for k = 1:T
 
-    tic; % Start time measuring
+    tic;
 
     % Check if POIs have been reached
     if(all(vecnorm(reshape(p(:,k,ass),2,N_pois) - pois,2,1) <= 1) && ~reached)
-        reach_time = k;
+        reach_time = t(k);
         reached = true;
     end
 
@@ -100,6 +110,15 @@ for k = 1:T
     [V,E] = eig(L);
     v2 = V(:,2);
     l2(k) = E(2,2);
+    if(k == 1)
+        l2_est(k) = l2(k);
+    end
+
+%     if(l2(k) < l2_min_hard)
+%         l2_min_hard = 1.01*l2_min_hard_stat;
+%     else
+%         l2_min_hard = l2_min_hard_stat;
+%     end
 
     % Calculate Voronoi constraints
     [C,d] = voronoiConstraints(reshape(p(:,k,:),2,N),r,epsilon);
@@ -108,26 +127,55 @@ for k = 1:T
     C = kron(eye(K),C)*B;
 
     % Calculate constraint for preserving communication
-    [DLdp,dldp] = communicationGradient(p(:,k,:),A(:,:,k),v2,K,alpha);
-    
-    % Construct cost function
-    S_tilde = kron(eye(K),S)*B;
-    H = blkdiag((S_tilde'*S_tilde) + 5*(eye(2*N*K)),diag(0*ones(K,1)));
-    f = [(-kron(ones(K,1),reshape(pois,2*N_pois,1) - S*reshape(p(:,k,:),2*N,1))'*S_tilde)';zeros(K,1)];
-    f(1:2*N*K) = f(1:2*N*K) - (1000*DLdp(end,:).*kron(ones(1,K),1-ones(1,2*N_pois)*S))';
-    
-    % Set constraints
-    A_hard = [-DLdp,zeros(size(DLdp,1),K)];
-    b_hard = repmat(l2(k) - l2_min,K,1);
-    Ac = [A_hard;[C,zeros(size(C,1),size(A_hard,2)-size(C,2))]];
-    bc = [b_hard;d];
-    lb = [repmat([0;0;-0.5*ones(2*(N-1),1)],K,1);zeros(K,1)];
-    ub = [repmat([0;0;0.5*ones(2*(N-1),1)],K,1);inf(K,1)];
-    hot_start = [vs_prev(1:2*N*(K-1));vs_prev(2*N*(K-2)+1:2*N*(K-1));vs_prev(2*N*K+1:end)];
-    % hot_start = [];
+    dAdt2 = zeros(N,N,2,N);
+    dDdt2 = zeros(N,N,2,N);
+    dldp = [];
+    for i = 1:N
+        for j = 1:N
+            if(i ~= j)
+                dij = norm(p(:,k,i) - p(:,k,j),2);
+                dAdt2(i,j,1,i) = -alpha*(1 - A(i,j,k))*A(i,j,k)*((p(1,k,i) - p(1,k,j))/dij);
+                dAdt2(i,j,2,i) = -alpha*(1 - A(i,j,k))*A(i,j,k)*((p(2,k,i) - p(2,k,j))/dij);
+                dAdt2(j,i,1,i) = dAdt2(i,j,1,i);
+                dAdt2(j,i,2,i) = dAdt2(i,j,2,i);
+            end
+        end
+        dAdt2(:,:,1,i) = dAdt2(:,:,1,i);
+        dAdt2(:,:,2,i) = dAdt2(:,:,2,i);
+        dDdt2(:,:,1,i) = diag(sum(dAdt2(:,:,1,i),2));
+        dDdt2(:,:,2,i) = diag(sum(dAdt2(:,:,2,i),2));
+        dldp(end+1) = v2'*(dDdt2(:,:,1,i) - dAdt2(:,:,1,i))*v2;
+        dldp(end+1) = v2'*(dDdt2(:,:,2,i) - dAdt2(:,:,2,i))*v2;
+    end
 
-    % Solve optimization problem
-    vs_new = quadprog(H,f,Ac,bc,[],[],lb,ub,hot_start,options);
+    DLdp = kron(tril(ones(K)),dldp);
+
+    S_tilde = kron(eye(K),S)*B;
+    H = (S_tilde'*S_tilde) + 5*(eye(2*N*K));
+    f = (-kron(ones(K,1),reshape(pois,2*N_pois,1) - S*reshape(p(:,k,:),2*N,1))'*S_tilde)';
+    f = f - (1000*DLdp(end,:).*kron(ones(1,K),1-ones(1,2*N_pois)*S))';
+    lb = [repmat([0;0;-0.5*ones(2*(N-1),1)],K,1)];
+    ub = [repmat([0;0;0.5*ones(2*(N-1),1)],K,1)];
+    costfun = @(x)(x'*H*x + f'*x);
+    constfun = @(x)nonlincon(x,reshape(p(:,k,:),2*N,1),K,B,N,alpha,d50,l2_min_hard,r,epsilon);
+
+    vs_new = fmincon(costfun,vs_prev,[],[],[],[],lb,ub,constfun,options);
+
+    %use gradient of Fiedler value as linear cost
+    %f(1:2*N*K) = f(1:2*N*K) - (1000*DLdp(end,:).*kron(ones(1,K),1-ones(1,2*N_pois)*S))';
+    %A_hard = [-DLdp,zeros(size(DLdp,1),K)];
+    %b_hard = repmat(l2(k) - l2_min_hard,K,1);
+%     A_soft = [-DLdp,-eye(K)];
+%     b_soft = repmat(l2(k) - l2_min_soft,K,1);
+%     Ac = [A_hard;A_soft;[C,zeros(size(C,1),size(A_hard,2)-size(C,2))]]; %...
+%     bc = [b_hard;b_soft;d];
+    %Ac = [A_hard;[C,zeros(size(C,1),size(A_hard,2)-size(C,2))]];
+    %bc = [b_hard;d];
+    %lb = [repmat([0;0;-2*ones(2*(N-1),1)],K,1);zeros(K,1)];
+    %ub = [repmat([0;0;2*ones(2*(N-1),1)],K,1);inf(K,1)];
+    %hot_start = [vs_prev(1:2*N*(K-1));vs_prev(2*N*(K-2)+1:2*N*(K-1));vs_prev(2*N*K+1:end)];
+    %vs_new = quadprog(H,f,Ac,bc,[],[],lb,ub,hot_start,options);
+
     if(~isempty(vs_new))
         vs_prev = vs_new;
         vs = vs_new(1:K*2*N);
@@ -136,11 +184,12 @@ for k = 1:T
         vs = zeros(size(vs));
     end
 
-    % Predict Fiedler value
     l_pred = l2(k) + DLdp*vs;
-
-    % Set robot input
     v(:,k,:) = reshape(vs(1:2*N),2,N);
+
+    % Update estimate of Fiedler value
+    l2_est(k+1) = l2(k) + dldp*reshape(v(:,k,:),2*N,1);
+    dl2_est(k) = dldp*reshape(v(:,k,:),2*N,1); 
 
     % update positions of robots
     for i = 1:N
@@ -176,7 +225,7 @@ for k = 1:T
     
         subplot(2,1,2)
         hold on
-        yline(l2_min,'k-.','LineWidth',2)
+        yline(l2_min_hard,'k-.','LineWidth',2)
         plot(l2(1:k),'k','LineWidth',2)
         plot(k:(k+K),[l2(k);l_pred],'r','LineWidth',2)
         xline(reach_time,'g-','LineWidth',2)
@@ -188,6 +237,7 @@ for k = 1:T
         drawnow
     end
 
+
 end
 
 %%
@@ -196,7 +246,8 @@ close all
 
 fig2 = figure(2);
 
-k_snap = [0,50,200,500];
+t_snap = [0,10,30,200];
+k_snap = t_snap./ts;
 k_snap(1) = 1;
 
 for j = 1:4
@@ -222,66 +273,73 @@ for j = 1:4
     yticks(-200:200:200)
     xlabel('x (m)','Interpreter','latex')
     ylabel('y (m)','Interpreter','latex')
-    title("k="+k_snap(j)+" ()",'Interpreter','latex')
+    title("t="+t_snap(j)+" (s)",'Interpreter','latex')
     hold off
 end
-sgtitle('Robots Trajectories','Fontsize',12,'Interpreter','latex')
+sgtitle('Robot Trajectories using Original Constraints','Fontsize',12,'Interpreter','latex')
 set(fig2,'Position',[0,0,500,475])
 
 fig3 = figure(3);
 hold on
-yline(l2_min,'r--','LineWidth',2)
-plot(l2(1:T),'k','LineWidth',2)
-xline(reach_time,'g-','LineWidth',2)
+yline(l2_min_hard,'r--','LineWidth',2)
+plot(l2_est(1:T),'k','LineWidth',2)
 hold off
 box on
-legend('$\underline{\lambda_2}$','$\lambda_2$','$k_{reach}$','Interpreter','latex','Location','northeast')
+legend('$\underline{\lambda_2}$','$\lambda_2$','Interpreter','latex','Location','northeast')
+xlim([1,t(T)])
 ylim([0,1.1*max(l2)])
-xlabel('k ()','Interpreter','latex')
-ylabel('$\lambda_2 ()$','Interpreter','latex')
-title('Fiedler Value','Fontsize',12,'Interpreter','latex')
+xlabel('t (s)','Interpreter','latex')
+ylabel('$\lambda_2$','Interpreter','latex')
+title('Fiedler Value using Expensive Solver','Fontsize',12,'Interpreter','latex')
 
 set(fig3,'Position',[0,0,500,200])
 
-% exportgraphics(fig2,'poi_pos.eps')
-% exportgraphics(fig3,'poi_fiedler.eps')
+% exportgraphics(fig2,'poi_pos_exp.eps')
+% exportgraphics(fig3,'poi_fiedler_exp.eps')
 
 %%
 
-function a = arrprob(p1,p2,a,d50)
+function [c,ceq] = nonlincon(u,p,K,B,N,alpha,d50,l2_min,r,epsilon)
 
-    d = norm(p1-p2,2);
-    a = 1 - 1/(1 + exp(-a*(d - d50)));
-    
-end
+    p_pred = reshape(kron(ones(K,1),p) + B*u,2,N,K);
 
-function [DLdp,dldp] = communicationGradient(p,A,v2,K,alpha)
-
-    N = size(p,3);
-    
-    dAdt2 = zeros(N,N,2,N);
-    dDdt2 = zeros(N,N,2,N);
-    dldp = [];
-    for i = 1:N
-        for j = 1:N
-            if(i ~= j)
-                dij = norm(p(:,i) - p(:,j),2);
-                dAdt2(i,j,1,i) = -alpha*(1 - A(i,j))*A(i,j)*((p(1,i) - p(1,j))/dij);
-                dAdt2(i,j,2,i) = -alpha*(1 - A(i,j))*A(i,j)*((p(2,i) - p(2,j))/dij);
-                dAdt2(j,i,1,i) = dAdt2(i,j,1,i);
-                dAdt2(j,i,2,i) = dAdt2(i,j,2,i);
+    c_comms = [];
+    for k = 1:K
+        A = zeros(N,N);
+        for i = 1:N
+            for j = i+1:N
+                Aij = arrprob(p_pred(:,i,k),p_pred(:,j,k),alpha,d50);
+                A(i,j) = Aij;
+                A(j,i) = Aij;
             end
         end
-        %dAdt2(:,:,1,i) = dAdt2(:,:,1,i);
-        %dAdt2(:,:,2,i) = dAdt2(:,:,2,i);
-        dDdt2(:,:,1,i) = diag(sum(dAdt2(:,:,1,i),2));
-        dDdt2(:,:,2,i) = diag(sum(dAdt2(:,:,2,i),2));
-        dldp(end+1) = v2'*(dDdt2(:,:,1,i) - dAdt2(:,:,1,i))*v2;
-        dldp(end+1) = v2'*(dDdt2(:,:,2,i) - dAdt2(:,:,2,i))*v2;
+        D = diag(sum(A,2));
+        L = D - A;
+        l = sort(eig(L));
+        l2 = l(2);
+        c_comms = [c_comms;l2_min-l2];
     end
 
-    DLdp = kron(tril(ones(K)),dldp);
+    c_coll = [];
+    for k = 1:K
+        for i = 1:N
+            for j = i+1:N
+                dij = norm(p_pred(:,i,k)-p_pred(:,j,k),2);
+                c_coll = [c_coll;2*r + epsilon - dij];
+            end
+        end
+    end
 
+    c = [c_comms;c_coll];
+    ceq = [];
+
+end
+
+function alpha = arrprob(p1,p2,alpha,d50)
+
+    d = norm(p1-p2,2);
+    alpha = 1 - 1/(1 + exp(-alpha*(d - d50)));
+    
 end
 
 function [C_blk,d_cat] = voronoiConstraints(p,r,epsilon)

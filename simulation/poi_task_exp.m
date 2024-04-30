@@ -11,7 +11,7 @@ set(0, 'DefaultFigureRenderer', 'painters');
 
 %%
 
-options = optimoptions("quadprog",'Display','none','Algorithm','interior-point-convex');
+options = optimoptions("fmincon","Display","off");
 
 N = 10; % number of robots
 T = 500;
@@ -55,11 +55,14 @@ slack = ones(T,1);
 pois = zeros(2,N_pois);
 pois(:,2:end) = [unifrnd(-200,200,[1,N_pois-1]);unifrnd(-200,200,[1,N_pois-1])];
 
-rt = zeros(T,1); % run time for each time step
+u_opt_prev = zeros(2*N*K,1);
+
+nsf_cnt = 0;
 
 %%
 
-% Calculate distance between each robot and pois for Hungarian algorithm
+% calculate distance between each robot and pois for Hungarian
+% algorithm
 C = zeros(N_pois-1,N-1);
 for i = 2:N_pois
     for j = 2:N
@@ -67,23 +70,28 @@ for i = 2:N_pois
     end
 end
 [ass,cost] = munkres(C);
-ass = ass + 1; % Groundstation was ignored
-ass = [1,ass]; % The robots that are assigned is the groundstation and the remaining robots
+ass = ass + 1; % we ignored the groundstation
+ass = [1,ass];
+
 s = zeros(N_pois,N);
 iter = 1;
 for i = ass
     s(iter,i) = 1;
     iter = iter + 1;
 end
-S = kron(s,eye(2)); % Construct robot assignment matrix
+S = kron(s,eye(2));
+
+dir_grad = zeros(2*N*K,1);
+
+rt = zeros(T,1); % run time for each time step
 
 for k = 1:T
 
-    tic; % Start time measuring
+    tic;
 
     % Check if POIs have been reached
     if(all(vecnorm(reshape(p(:,k,ass),2,N_pois) - pois,2,1) <= 1) && ~reached)
-        reach_time = k;
+        reach_time = t(k);
         reached = true;
     end
 
@@ -110,24 +118,17 @@ for k = 1:T
     % Calculate constraint for preserving communication
     [DLdp,dldp] = communicationGradient(p(:,k,:),A(:,:,k),v2,K,alpha);
     
-    % Construct cost function
     S_tilde = kron(eye(K),S)*B;
-    H = blkdiag((S_tilde'*S_tilde) + 5*(eye(2*N*K)),diag(0*ones(K,1)));
-    f = [(-kron(ones(K,1),reshape(pois,2*N_pois,1) - S*reshape(p(:,k,:),2*N,1))'*S_tilde)';zeros(K,1)];
-    f(1:2*N*K) = f(1:2*N*K) - (1000*DLdp(end,:).*kron(ones(1,K),1-ones(1,2*N_pois)*S))';
-    
-    % Set constraints
-    A_hard = [-DLdp,zeros(size(DLdp,1),K)];
-    b_hard = repmat(l2(k) - l2_min,K,1);
-    Ac = [A_hard;[C,zeros(size(C,1),size(A_hard,2)-size(C,2))]];
-    bc = [b_hard;d];
-    lb = [repmat([0;0;-0.5*ones(2*(N-1),1)],K,1);zeros(K,1)];
-    ub = [repmat([0;0;0.5*ones(2*(N-1),1)],K,1);inf(K,1)];
-    hot_start = [vs_prev(1:2*N*(K-1));vs_prev(2*N*(K-2)+1:2*N*(K-1));vs_prev(2*N*K+1:end)];
-    % hot_start = [];
+    H = (S_tilde'*S_tilde) + 5*(eye(2*N*K));
+    f = (-kron(ones(K,1),reshape(pois,2*N_pois,1) - S*reshape(p(:,k,:),2*N,1))'*S_tilde)';
+    f = f - (1000*DLdp(end,:).*kron(ones(1,K),1-ones(1,2*N_pois)*S))';
+    lb = [repmat([0;0;-0.5*ones(2*(N-1),1)],K,1)];
+    ub = [repmat([0;0;0.5*ones(2*(N-1),1)],K,1)];
+    costfun = @(x)(x'*H*x + f'*x);
+    constfun = @(x)nonlincon(x,reshape(p(:,k,:),2*N,1),K,B,N,alpha,d50,l2_min,r,epsilon);
 
-    % Solve optimization problem
-    vs_new = quadprog(H,f,Ac,bc,[],[],lb,ub,hot_start,options);
+    vs_new = fmincon(costfun,vs_prev,[],[],[],[],lb,ub,constfun,options);
+
     if(~isempty(vs_new))
         vs_prev = vs_new;
         vs = vs_new(1:K*2*N);
@@ -136,10 +137,7 @@ for k = 1:T
         vs = zeros(size(vs));
     end
 
-    % Predict Fiedler value
     l_pred = l2(k) + DLdp*vs;
-
-    % Set robot input
     v(:,k,:) = reshape(vs(1:2*N),2,N);
 
     % update positions of robots
@@ -187,6 +185,7 @@ for k = 1:T
     
         drawnow
     end
+
 
 end
 
@@ -243,15 +242,51 @@ title('Fiedler Value','Fontsize',12,'Interpreter','latex')
 
 set(fig3,'Position',[0,0,500,200])
 
-% exportgraphics(fig2,'poi_pos.eps')
-% exportgraphics(fig3,'poi_fiedler.eps')
+% exportgraphics(fig2,'poi_pos_exp.eps')
+% exportgraphics(fig3,'poi_fiedler_exp.eps')
 
 %%
 
-function a = arrprob(p1,p2,a,d50)
+function [c,ceq] = nonlincon(u,p,K,B,N,alpha,d50,l2_min,r,epsilon)
+
+    p_pred = reshape(kron(ones(K,1),p) + B*u,2,N,K);
+
+    c_comms = [];
+    for k = 1:K
+        A = zeros(N,N);
+        for i = 1:N
+            for j = i+1:N
+                Aij = arrprob(p_pred(:,i,k),p_pred(:,j,k),alpha,d50);
+                A(i,j) = Aij;
+                A(j,i) = Aij;
+            end
+        end
+        D = diag(sum(A,2));
+        L = D - A;
+        l = sort(eig(L));
+        l2 = l(2);
+        c_comms = [c_comms;l2_min-l2];
+    end
+
+    c_coll = [];
+    for k = 1:K
+        for i = 1:N
+            for j = i+1:N
+                dij = norm(p_pred(:,i,k)-p_pred(:,j,k),2);
+                c_coll = [c_coll;2*r + epsilon - dij];
+            end
+        end
+    end
+
+    c = [c_comms;c_coll];
+    ceq = [];
+
+end
+
+function alpha = arrprob(p1,p2,alpha,d50)
 
     d = norm(p1-p2,2);
-    a = 1 - 1/(1 + exp(-a*(d - d50)));
+    alpha = 1 - 1/(1 + exp(-alpha*(d - d50)));
     
 end
 
